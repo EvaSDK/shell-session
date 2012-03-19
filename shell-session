@@ -1,0 +1,203 @@
+#!/usr/bin/python2
+# -*- python -*-
+# vim: set expandtab ts=4 sw=4:
+#
+# TODO: create a PAM session as well ?
+# TODO: write tools to list and source existing dbus session in order to
+#       interact with things like tracker
+
+""" Simple Session Manager for XDG compliant programs not requiring X. """
+
+import os
+import sys
+import shlex
+import subprocess
+import logging
+import time
+import signal
+import optparse
+import resource
+
+import xdg.BaseDirectory
+import xdg.DesktopEntry
+
+VERSION = "0.1.0"
+
+# Default maximum for the number of available file descriptors.
+MAXFD = 1024
+
+
+def start_dbus_session(log):
+    """ Start a DBus session. """
+    dbus_pid = 0
+    proc = subprocess.Popen(['/usr/bin/dbus-launch'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    data_stdout, data_stderr = proc.communicate()
+    if proc.returncode != 0:
+        log.error("Could not start dbus session: %s" % data_stderr)
+        return 0
+    for line in data_stdout.split('\n'):
+        args = line.split('=', 1)
+        if len(args) != 2:
+            continue
+        if args[0] == 'DBUS_SESSION_BUS_ADDRESS':
+            os.environ[args[0]] = args[1]
+        elif args[0] == 'DBUS_SESSION_BUS_PID':
+            dbus_pid = args[1]
+    try:
+        dbus_pid = int(dbus_pid)
+    except ValueError:
+        log.error("dbus session pid is not an integer: %s" % dbus_pid)
+        return 0
+    log.info("dbus session started with pid = %s" % dbus_pid)
+    return dbus_pid
+
+
+def stop_dbus_session(log, pid):
+    """ Stop previously started DBus session. """
+    try:
+        os.kill(pid, 15)
+    except OSError, exc:
+        log.error("failed to kill dbus session with pid = %s: %s" % (pid, exc))
+    log.info("dbus session killed")
+
+
+class ShellSession(object):
+    """ Helper object.
+
+    Contains the code and utility functions to start and shutdown a session.
+    """
+
+    def __init__(self):
+        self.pid = None
+        self.process = []
+        self.logfile = open('.shell-session.log', 'w')
+
+        self.logger = logging.getLogger('shell-session')
+        loghandler = logging.StreamHandler(stream=self.logfile)
+        logformat = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+        loghandler.setFormatter(logformat)
+        self.logger.addHandler(loghandler)
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = 0
+
+        # Register signal handlers
+        signal.signal(signal.SIGTERM, self.shutdown)
+        signal.signal(signal.SIGINT,  self.shutdown)
+
+    def shutdown(self, signum, frame):
+        """ Shutdown session on SIGTERM and SIGINT. """
+        if frame:
+            del frame
+
+        if self.pid is not None:
+            stop_dbus_session(self.logger, self.pid)
+
+        for name, proc in self.process:
+            if proc.poll() is None:
+                proc.terminate()
+                self.logger.info('Sent SIGTERM to "%s"', name)
+
+        self.logger.info('Session terminated by signal %d', signum)
+        sys.exit(os.EX_OK)
+
+    def run(self):
+        """ Main stuff for session management. """
+        # Start a dbus session
+        self.pid = start_dbus_session(self.logger)
+        if not self.pid:
+            sys.exit(os.EX_SOFTWARE)
+
+        # Start daemons
+        for path in xdg.BaseDirectory.load_config_paths('autostart'):
+            self.logger.debug('Loading desktop entries from %s', path)
+
+            for dentry in os.listdir(path):
+                fullpath = os.path.sep.join([path, dentry])
+                logging.debug('Parsing %s', fullpath)
+                dinfo = xdg.DesktopEntry.DesktopEntry(filename=fullpath)
+
+                self.process.append((dinfo.getName(), subprocess.Popen(
+                    shlex.split(dinfo.getExec()),
+                    stdout=self.logfile,
+                    stderr=self.logfile
+               )))
+                self.logger.debug('Started "%s" with pid %d',
+                    self.process[-1][0],
+                    self.process[-1][1].pid)
+
+        # Wait loop
+        alive = 1
+        while alive > 0:
+            alive = 0
+            for name, proc in self.process:
+                ret = proc.poll()
+                if ret is not None:
+                    self.logger.info('"%s" command terminated with exit code %d', name, ret)
+                    self.process.remove((name, proc))
+                else:
+                    alive += 1
+
+            time.sleep(60)
+
+        # When all child exited
+        stop_dbus_session(self.logger, self.pid)
+        return os.EX_OK
+
+
+def daemonize():
+    """ Detach process from the controlling terminal and run it as a daemon. """
+
+    try:
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(os.EX_OK)
+    except OSError, exc:
+        raise Exception("First fork failed: %s [%d]" % (exc.strerror, exc.errno))
+
+    os.chdir(os.environ['HOME'])
+    os.setsid()
+    os.umask(0)
+
+    try:
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(os.EX_OK)
+    except OSError, exc:
+        raise Exception("Second fork failed: %s [%d]" % (exc.strerror, exc.errno))
+
+    # Resource usage information.
+    maxfd = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
+    if (maxfd == resource.RLIM_INFINITY):
+        maxfd = MAXFD
+
+    # Iterate through and close all file descriptors.
+    for fdi in range(0, maxfd):
+        try:
+            os.close(fdi)
+        except OSError:	 # ERROR, fdi wasn't open to begin with (ignored)
+            pass
+
+    os.open(os.devnull, os.O_RDWR)  # standard input (0)
+
+    # Duplicate standard input to standard output and standard error.
+    os.dup2(0, 1)			# standard output (1)
+    os.dup2(0, 2)			# standard error (2)
+
+    return ShellSession().run()
+
+if __name__ == '__main__':
+
+    PARSER = optparse.OptionParser(
+        version="%prog " + VERSION, option_list=[
+        optparse.Option("-n", "--no-daemon",  dest="nodaemon",
+            help="Run in the foreground", action="store_true", default=False),
+    ])
+    (POPTIONS, _ARGS) = PARSER.parse_args()
+
+    if not POPTIONS.nodaemon:
+        sys.exit(daemonize())
+    else:
+        sys.exit(ShellSession().run())
