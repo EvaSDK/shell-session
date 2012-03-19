@@ -6,6 +6,17 @@ shell-session is a simple python script that lets you start dbus
 based daemons that require a session bus without requiring a full
 blown desktop.
 
+Why
+===
+
+This tool was written in order to simplify starting rygel and tracker
+on a file server that runs a minimal installation (no desktop, no X).
+
+The experience should be as follows:
+ * start shell-session on boot
+ * start your DLNA device
+ * profit
+
 License
 =======
 
