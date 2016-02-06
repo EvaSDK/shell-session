@@ -8,15 +8,15 @@
 
 """ Simple Session Manager for XDG compliant programs not requiring X. """
 
-import os
-import sys
-import shlex
-import subprocess
 import logging
-import time
-import signal
 import optparse
+import os
 import resource
+import shlex
+import signal
+import subprocess
+import sys
+import time
 
 import xdg.BaseDirectory
 import xdg.DesktopEntry
