@@ -59,7 +59,7 @@ def stop_dbus_session(log, pid):
     """ Stop previously started DBus session. """
     try:
         os.kill(pid, 15)
-    except OSError, exc:
+    except OSError as exc:
         log.error("failed to kill dbus session with pid = %s: %s" % (pid, exc))
     log.info("dbus session killed")
 
@@ -154,7 +154,7 @@ def daemonize():
         pid = os.fork()
         if pid > 0:
             sys.exit(os.EX_OK)
-    except OSError, exc:
+    except OSError as exc:
         raise Exception("First fork failed: %s [%d]" % (exc.strerror, exc.errno))
 
     os.chdir(os.environ['HOME'])
@@ -165,7 +165,7 @@ def daemonize():
         pid = os.fork()
         if pid > 0:
             sys.exit(os.EX_OK)
-    except OSError, exc:
+    except OSError as exc:
         raise Exception("Second fork failed: %s [%d]" % (exc.strerror, exc.errno))
 
     # Resource usage information.
