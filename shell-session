@@ -86,7 +86,7 @@ class ShellSession(object):
 
         # Register signal handlers
         signal.signal(signal.SIGTERM, self.shutdown)
-        signal.signal(signal.SIGINT,  self.shutdown)
+        signal.signal(signal.SIGINT, self.shutdown)
 
     def shutdown(self, signum, frame):
         """ Shutdown session on SIGTERM and SIGINT. """
