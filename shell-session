@@ -8,8 +8,8 @@
 
 """ Simple Session Manager for XDG compliant programs not requiring X. """
 
+import argparse
 import logging
-import optparse
 import os
 import resource
 import shlex
@@ -21,7 +21,7 @@ import time
 import xdg.BaseDirectory
 import xdg.DesktopEntry
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 # Default maximum for the number of available file descriptors.
 MAXFD = 1024
@@ -195,18 +195,16 @@ def daemonize():
 
     return ShellSession().run()
 
+
 if __name__ == '__main__':
 
-    PARSER = optparse.OptionParser(
-        version="%prog " + VERSION, option_list=[
-            optparse.Option("-n", "--no-daemon", dest="nodaemon",
-                            help="Run in the foreground", action="store_true",
-                            default=False),
-        ]
-    )
-    (POPTIONS, _ARGS) = PARSER.parse_args()
+    PARSER = argparse.ArgumentParser()
+    PARSER.add_argument("-n", "--no-daemon", dest="nodaemon",
+                        help="Run in the foreground", action="store_true",
+                        default=False),
+    ARGS = PARSER.parse_args()
 
-    if not POPTIONS.nodaemon:
+    if not ARGS.nodaemon:
         sys.exit(daemonize())
     else:
         sys.exit(ShellSession().run())
