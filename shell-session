@@ -28,7 +28,7 @@ MAXFD = 1024
 
 
 def start_dbus_session(log):
-    """ Start a DBus session. """
+    """Start a DBus session."""
     dbus_pid = 0
     proc = subprocess.Popen(['/usr/bin/dbus-launch'],
         stdout=subprocess.PIPE,
@@ -56,7 +56,7 @@ def start_dbus_session(log):
 
 
 def stop_dbus_session(log, pid):
-    """ Stop previously started DBus session. """
+    """Stop previously started DBus session."""
     try:
         os.kill(pid, 15)
     except OSError as exc:
@@ -65,7 +65,7 @@ def stop_dbus_session(log, pid):
 
 
 class ShellSession(object):
-    """ Helper object.
+    """Helper object.
 
     Contains the code and utility functions to start and shutdown a session.
     """
@@ -148,7 +148,7 @@ class ShellSession(object):
 
 
 def daemonize():
-    """ Detach process from the controlling terminal and run it as a daemon. """
+    """Detach process from the controlling terminal and run it as a daemon."""
 
     try:
         pid = os.fork()
