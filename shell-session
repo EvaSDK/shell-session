@@ -37,7 +37,7 @@ def start_dbus_session(log):
     )
     data_stdout, data_stderr = proc.communicate()
     if proc.returncode != 0:
-        log.error("Could not start dbus session: %s" % data_stderr)
+        log.error("Could not start dbus session: %s", data_stderr)
         return 0
     for line in data_stdout.split('\n'):
         args = line.split('=', 1)
@@ -50,9 +50,9 @@ def start_dbus_session(log):
     try:
         dbus_pid = int(dbus_pid)
     except ValueError:
-        log.error("dbus session pid is not an integer: %s" % dbus_pid)
+        log.error("dbus session pid is not an integer: %s", dbus_pid)
         return 0
-    log.info("dbus session started with pid = %s" % dbus_pid)
+    log.info("dbus session started with pid = %s", dbus_pid)
     return dbus_pid
 
 
@@ -61,7 +61,7 @@ def stop_dbus_session(log, pid):
     try:
         os.kill(pid, 15)
     except OSError as exc:
-        log.error("failed to kill dbus session with pid = %s: %s" % (pid, exc))
+        log.error("failed to kill dbus session with pid = %s: %s", pid, exc)
     log.info("dbus session killed")
 
 
